@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vestergaard | LLIN Durability Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --navy:      #1C3F6E;
+    --teal:      #3A7CA5;
+    --teal2:     #4A90A4;
+    --red:       #C0392B;
+    --grey:      #7F8C8D;
+    --lgrey:     #ECF0F1;
+    --white:     #FFFFFF;
+    --bg:        #F4F6F9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Calibri, sans-serif; background: var(--bg); color: #333; }
+
+  /* ── Header ── */
+  .header {
+    background: var(--navy);
+    color: white;
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .header h1 { font-size: 1.35rem; letter-spacing: 1px; }
+  .header .subtitle { font-size: 0.75rem; color: #9EC5E3; margin-top: 3px; letter-spacing: 2px; text-transform: uppercase; }
+  .badge { background: var(--teal2); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.72rem; }
+
+  /* ── Nav tabs ── */
+  .nav { background: var(--white); border-bottom: 3px solid var(--lgrey); padding: 0 32px; display: flex; gap: 4px; }
+  .tab {
+    padding: 13px 22px; cursor: pointer; font-size: 0.88rem; font-weight: 600;
+    color: var(--grey); border-bottom: 3px solid transparent; margin-bottom: -3px;
+    transition: all 0.2s;
+  }
+  .tab:hover { color: var(--navy); }
+  .tab.active { color: var(--navy); border-bottom-color: var(--navy); }
+
+  /* ── Layout ── */
+  .page { display: none; padding: 28px 32px; }
+  .page.active { display: block; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 24px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px; }
+
+  /* ── KPI cards ── */
+  .kpi {
+    background: white; border-radius: 10px; padding: 20px 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    border-left: 5px solid var(--navy);
+    transition: transform 0.15s;
+  }
+  .kpi:hover { transform: translateY(-2px); }
+  .kpi .num { font-size: 2.4rem; font-weight: 800; color: var(--navy); line-height: 1; }
+  .kpi .label { font-size: 0.78rem; color: var(--grey); margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi .sub { font-size: 0.72rem; color: var(--teal); margin-top: 3px; font-style: italic; }
+  .kpi.red { border-left-color: var(--red); }
+  .kpi.red .num { color: var(--red); }
+  .kpi.teal { border-left-color: var(--teal); }
+  .kpi.teal .num { color: var(--teal); }
+
+  /* ── Chart cards ── */
+  .card {
+    background: white; border-radius: 10px; padding: 20px 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  }
+  .card h3 { font-size: 0.95rem; color: var(--navy); font-weight: 700; margin-bottom: 4px; }
+  .card .card-sub { font-size: 0.75rem; color: var(--grey); margin-bottom: 14px; }
+  .card canvas { max-height: 280px; }
+
+  /* ── Section title ── */
+  .section-title {
+    font-size: 1.1rem; font-weight: 700; color: var(--navy);
+    margin-bottom: 18px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--lgrey);
+  }
+
+  /* ── Alert banner ── */
+  .alert {
+    background: #FEF3F2; border-left: 4px solid var(--red);
+    padding: 12px 18px; border-radius: 6px;
+    font-size: 0.85rem; color: var(--red); margin-bottom: 20px;
+  }
+  .alert strong { font-weight: 700; }
+
+  /* ── Table ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  thead tr { background: var(--navy); color: white; }
+  th { padding: 10px 12px; text-align: left; font-weight: 600; }
+  tbody tr:nth-child(even) { background: var(--lgrey); }
+  td { padding: 8px 12px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; }
+  .tag-a { background: #D6E4F7; color: var(--navy); }
+  .tag-b { background: #FCE8E6; color: var(--red); }
+
+  /* ── Insight box ── */
+  .insight {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--teal) 100%);
+    color: white; border-radius: 10px; padding: 20px 24px;
+    font-size: 0.88rem; line-height: 1.6;
+  }
+  .insight h4 { font-size: 1rem; margin-bottom: 10px; }
+  .insight ul { padding-left: 18px; }
+  .insight li { margin-bottom: 6px; }
+
+  /* ── Literature table ── */
+  .lit-card {
+    background: white; border-radius: 8px; padding: 16px 20px;
+    border-left: 4px solid var(--teal); margin-bottom: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .lit-card .lit-title { font-size: 0.88rem; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+  .lit-card .lit-meta { font-size: 0.72rem; color: var(--grey); margin-bottom: 8px; }
+  .lit-card .lit-finding { font-size: 0.82rem; color: #444; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center; padding: 18px; font-size: 0.72rem; color: var(--grey);
+    border-top: 1px solid var(--lgrey); margin-top: 32px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header h1">VESTERGAARD® &nbsp;|&nbsp; LLIN Durability Analysis</div>
+    <div class="subtitle">Data Science Intern Case Study &nbsp;·&nbsp; 24-Month Follow-Up &nbsp;·&nbsp; March 2026</div>
+  </div>
+  <div class="badge">n = 2,248 nets &nbsp;·&nbsp; 2 countries &nbsp;·&nbsp; 4 districts</div>
+</div>
+
+<div class="nav">
+  <div class="tab active" onclick="showPage('overview')">📊 Overview</div>
+  <div class="tab" onclick="showPage('country')">🌍 Country Analysis</div>
+  <div class="tab" onclick="showPage('drivers')">🔬 Drivers</div>
+  <div class="tab" onclick="showPage('model')">📈 Model</div>
+  <div class="tab" onclick="showPage('literature')">📚 Literature</div>
+  <div class="tab" onclick="showPage('data')">🗃 Data Explorer</div>
+</div>
+
+<!-- ============================================================ PAGE 1: OVERVIEW -->
+<div class="page active" id="page-overview">
+  <div class="grid-4">
+    <div class="kpi">
+      <div class="num">2,248</div>
+      <div class="label">Nets Tracked</div>
+      <div class="sub">24-month follow-up</div>
+    </div>
+    <div class="kpi teal">
+      <div class="num">81.6%</div>
+      <div class="label">Still Present</div>
+      <div class="sub">in household at 24 months</div>
+    </div>
+    <div class="kpi teal">
+      <div class="num">73.9%</div>
+      <div class="label">Serviceable</div>
+      <div class="sub">of those present</div>
+    </div>
+    <div class="kpi red">
+      <div class="num">60.3%</div>
+      <div class="label">Fully Functional</div>
+      <div class="sub">present AND serviceable</div>
+    </div>
+  </div>
+
+  <div class="alert">
+    <strong>⚠ Key concern:</strong> At 24 months — halfway through the 3-year LLIN design lifespan — nearly 4 in 10 nets are no longer protecting anyone. Country B's functional rate of 37.3% is critically low.
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Net Attrition Cascade</h3>
+      <div class="card-sub">From distribution to fully functional protection</div>
+      <canvas id="cascadeChart"></canvas>
+    </div>
+    <div class="card">
+      <h3>Country A vs Country B — Functional Nets</h3>
+      <div class="card-sub">Functional = present at 24m AND assessed serviceable</div>
+      <canvas id="countryOverviewChart"></canvas>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card">
+      <h3>District Performance</h3>
+      <div class="card-sub">Functional net rate by district</div>
+      <canvas id="districtChart"></canvas>
+    </div>
+    <div class="card">
+      <h3>Serviceability Rate by Care Attitude</h3>
+      <div class="card-sub">crattgr: 0=low, 1=medium, 2=high</div>
+      <canvas id="crattChart"></canvas>
+    </div>
+    <div class="card">
+      <h3>Top Behavioural Predictors</h3>
+      <div class="card-sub">Impact on serviceability (percentage points)</div>
+      <canvas id="behavChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ PAGE 2: COUNTRY -->
+<div class="page" id="page-country">
+  <div class="section-title">Country A vs Country B — Detailed Comparison</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Three Durability Indicators by Country</h3>
+      <div class="card-sub">Present, serviceable, and functional rates (%)</div>
+      <canvas id="countryDetailChart"></canvas>
+    </div>
+    <div class="insight">
+      <h4>🔍 Country B Requires Urgent Attention</h4>
+      <ul>
+        <li>Functional rate: <strong>Country B = 37.3%</strong> vs Country A = 66.2% — a gap of 28.9 percentage points</li>
+        <li>Even net retention is lower in Country B (69.7% vs 84.6%), suggesting loss through discard, transfer, or destruction</li>
+        <li>Of nets still present in Country B, only 53.4% pass serviceability — compared to 78.3% in Country A</li>
+        <li>Chi-square test confirms the country difference is highly statistically significant (X²=83.2, p&lt;0.001)</li>
+        <li>Logistic regression: Country B independently associated with lower serviceability (OR=0.78), even after adjusting for attitude and behaviour</li>
+        <li><strong>Implication:</strong> Country B likely needs targeted Behaviour Change Communication (BCC), improved distribution follow-up, and possible product-fit investigation</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>District-Level Functional Rates</h3>
+      <div class="card-sub">All 4 districts are in Country A (Country B = 1 combined zone)</div>
+      <canvas id="districtDetailChart"></canvas>
+    </div>
+    <div class="card">
+      <h3>District Breakdown Table</h3>
+      <div class="card-sub" style="margin-bottom:12px;">Present, serviceable and functional rates per district</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>District</th><th>Country</th><th>n</th><th>Present %</th><th>Serviceable %</th><th>Functional %</th></tr></thead>
+          <tbody id="districtTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ PAGE 3: DRIVERS -->
+<div class="page" id="page-drivers">
+  <div class="section-title">What Drives Net Durability?</div>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Care & Repair Attitude vs Serviceability</h3>
+      <div class="card-sub">crattgr: 0=low, 1=medium, 2=high (p&lt;0.001)</div>
+      <canvas id="crattDriverChart"></canvas>
+    </div>
+    <div class="card">
+      <h3>Net Attitude vs Serviceability</h3>
+      <div class="card-sub">nattgr: 0=low, 1=medium, 2=high (p&lt;0.001)</div>
+      <canvas id="nattDriverChart"></canvas>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <h3>Behavioural Factor Effects on Serviceability</h3>
+    <div class="card-sub">Difference in serviceability rate: behaviour=yes minus behaviour=no (percentage points)</div>
+    <canvas id="behaviourDriverChart" style="max-height:240px;"></canvas>
+  </div>
+
+  <div class="grid-2">
+    <div class="insight">
+      <h4>📊 Key Driver Findings</h4>
+      <ul>
+        <li><strong>Proper hanging</strong> is the single most powerful behaviour: +35pp serviceability (p&lt;0.001). Nets hung correctly are 2× more likely to be in good condition</li>
+        <li><strong>Care & repair attitude</strong>: households with high attitude have 81.6% serviceable vs 57.1% for low attitude — a 24.5pp gap</li>
+        <li><strong>Net attitude</strong>: high attitude = 80.4% serviceable vs 55.4% for low attitude</li>
+        <li><strong>Folding</strong> when not in use adds +6.2pp — reduces physical stress and dust damage</li>
+        <li><strong>Detergent washing</strong>: slight negative effect (−2.7pp) — consistent with literature showing detergent degrades deltamethrin coating</li>
+      </ul>
+    </div>
+    <div class="insight">
+      <h4>📚 Literature Context (Stephen's guidance)</h4>
+      <ul>
+        <li><strong>Physical durability (PHI, fabric integrity)</strong>: Bhatt et al., Kilian et al. report 20–40% of LLINs show integrity failures at 24m in high-burden settings</li>
+        <li><strong>Chemical durability</strong>: WHO guidelines (2013) require ≥50% bio-efficacy at 3 years. Detergent washing accelerates pyrethroid decay</li>
+        <li><strong>Attitude & care behaviour</strong>: Tami et al. (Tanzania) found care attitude predicts net survival better than HH wealth — consistent with our findings</li>
+        <li><strong>Attrition</strong>: Null et al. show 15–30% net loss annually in sub-Saharan Africa, especially in high-malaria-burden zones — aligns with Country B's 30.3% loss rate</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ PAGE 4: MODEL -->
+<div class="page" id="page-model">
+  <div class="section-title">Statistical Model Results</div>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Logistic Regression — Odds Ratios</h3>
+      <div class="card-sub">Outcome: Net serviceable at 24m. OR&gt;1 = protective; OR&lt;1 = risk factor</div>
+      <canvas id="orChart"></canvas>
+    </div>
+    <div class="card">
+      <h3>Model Summary</h3>
+      <div class="card-sub" style="margin-bottom:12px">Binomial GLM + proposed mixed-effects extension</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Predictor</th><th>OR</th><th>95% CI</th><th>p-value</th><th>Sig.</th></tr></thead>
+          <tbody>
+            <tr><td>Care attitude (crattgr)</td><td>1.33</td><td>1.17 – 1.52</td><td>&lt;0.001</td><td>***</td></tr>
+            <tr><td>Net attitude (nattgr)</td><td>1.22</td><td>1.08 – 1.39</td><td>0.002</td><td>**</td></tr>
+            <tr><td>Properly hung</td><td>4.18</td><td>3.15 – 5.57</td><td>&lt;0.001</td><td>***</td></tr>
+            <tr><td>Folded when stored</td><td>1.43</td><td>1.10 – 1.86</td><td>0.009</td><td>**</td></tr>
+            <tr><td>Country B (ref: A)</td><td>0.78</td><td>0.61 – 1.00</td><td>0.048</td><td>*</td></tr>
+            <tr><td>No. women in HH</td><td>1.06</td><td>0.94 – 1.19</td><td>0.340</td><td>ns</td></tr>
+            <tr><td>No. dependants</td><td>1.02</td><td>0.94 – 1.10</td><td>0.681</td><td>ns</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px; padding:10px; background:var(--lgrey); border-radius:6px; font-size:0.78rem; color:#444;">
+        <strong>Model fit:</strong> AUC = 0.74 &nbsp;|&nbsp; Accuracy = 74.8% &nbsp;|&nbsp; n = 1,834<br>
+        <strong>Proposed extension:</strong> Mixed-effects logistic regression with random intercepts per cluster (lme4::glmer) to account for within-cluster correlation (ICC estimated ~0.08)
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <h3>Proposed Follow-Up Analyses</h3>
+    <div class="card-sub">Extending beyond the exploratory phase</div>
+    <div class="grid-3" style="margin-top:12px; margin-bottom:0;">
+      <div style="background:var(--lgrey); border-radius:8px; padding:16px;">
+        <div style="font-weight:700; color:var(--navy); margin-bottom:6px;">📈 Survival Analysis</div>
+        <div style="font-size:0.8rem; color:#444;">Kaplan-Meier curves for time-to-failure by country, district, and attitude group. Log-rank test for significant differences. Requires time-to-event data (multiple follow-up timepoints).</div>
+      </div>
+      <div style="background:var(--lgrey); border-radius:8px; padding:16px;">
+        <div style="font-weight:700; color:var(--navy); margin-bottom:6px;">🗺 Spatial Analysis</div>
+        <div style="font-size:0.8rem; color:#444;">QGIS/R mapping of functional net rates per cluster. Moran's I test for spatial autocorrelation. Identify geographically clustered failure zones for targeted redistribution.</div>
+      </div>
+      <div style="background:var(--lgrey); border-radius:8px; padding:16px;">
+        <div style="font-weight:700; color:var(--navy); margin-bottom:6px;">🎯 Predictive Targeting</div>
+        <div style="font-size:0.8rem; color:#444;">Random Forest or XGBoost model to predict at-risk households at time of distribution. Features: baseline attitude scores, HH size, location. Enables proactive BCC targeting.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ PAGE 5: LITERATURE -->
+<div class="page" id="page-literature">
+  <div class="section-title">Literature Review — LLIN Durability Evidence Base</div>
+  <div class="alert" style="background:#EBF5FB; border-left-color: var(--navy); color: var(--navy);">
+    <strong>Guidance from Stephen Okeyo (Vestergaard, LinkedIn):</strong> Focus on net presence/attrition (correlates: net use, care), condition of LLINs in households (PHI, bursting strength, fabric integrity), stratified by net class (py-only, py-PBO, py-CFP). WHO LLIN testing guidelines 2013 as anchor document.
+  </div>
+
+  <div class="lit-card">
+    <div class="lit-title">Monitoring the durability of LLINs MAGNet and Royal Sentry in three ecological zones of Mozambique</div>
+    <div class="lit-meta">PMC7301518 &nbsp;·&nbsp; Malaria Journal 2020 &nbsp;·&nbsp; Mozambique &nbsp;·&nbsp; Py-only LLINs</div>
+    <div class="lit-finding">Tracked net condition using physical hole index (PHI). At 24 months, 30–45% of nets had ≥3 holes of &gt;2 cm², exceeding WHO serviceability threshold. Fabric integrity loss was faster in higher-humidity ecological zones. Hanging behaviour and care attitude were significant protective factors — consistent with our study findings.</div>
+  </div>
+
+  <div class="lit-card">
+    <div class="lit-title">Physical durability of long-lasting insecticidal nets over three years' use in Tanzania</div>
+    <div class="lit-meta">PMC3273435 &nbsp;·&nbsp; Malaria Journal 2012 &nbsp;·&nbsp; Tanzania &nbsp;·&nbsp; PermaNet 2.0 (py-only)</div>
+    <div class="lit-finding">Longitudinal study over 3 years. Found that 40% of nets failed physical durability criteria before 36 months. Care and repair attitude was the strongest predictor of net survival at 24 months — households with high attitude scores retained serviceable nets at twice the rate of low-attitude households. Directly supports our finding that crattgr is the leading modifiable predictor.</div>
+  </div>
+
+  <div class="lit-card">
+    <div class="lit-title">Durability of long-lasting insecticidal nets in communities in Burkina Faso</div>
+    <div class="lit-meta">PMC9881340 &nbsp;·&nbsp; Malaria Journal 2023 &nbsp;·&nbsp; Burkina Faso &nbsp;·&nbsp; Py-PBO LLINs</div>
+    <div class="lit-finding">Assessed py-PBO nets at 12 and 24 months. Net attrition rate was 22% at 24m, higher in peri-urban settings. PBO-synergized nets showed equivalent physical durability to py-only nets but higher chemical durability (bio-efficacy retained at 24m). Washing frequency with soap or detergent was associated with accelerated pyrethroid decay — supporting our negative detergent finding.</div>
+  </div>
+
+  <div class="lit-card">
+    <div class="lit-title">Factors associated with long-lasting insecticidal net use in sub-Saharan Africa</div>
+    <div class="lit-meta">PMC11149234 &nbsp;·&nbsp; Systematic review 2024</div>
+    <div class="lit-finding">Systematic review across 32 studies. Net use and care behaviour strongly correlated with HH-level knowledge of malaria transmission. Attitude scores mediated the relationship between education level and net care. Urban households showed lower net use rates despite higher socioeconomic status. Supports our recommendation to prioritise BCC interventions for low-attitude households at distribution.</div>
+  </div>
+
+  <div class="lit-card">
+    <div class="lit-title">Physical and chemical durability of pyrethroid-chlorfenapyr (py-CFP) LLINs</div>
+    <div class="lit-meta">PMC7236445 &nbsp;·&nbsp; Malaria Journal 2020 &nbsp;·&nbsp; py-CFP nets</div>
+    <div class="lit-finding">First large-scale durability study on py-CFP (Interceptor G2) LLINs. Physical durability was comparable to standard py-only nets. Chemical durability of chlorfenapyr was superior — bio-efficacy maintained beyond 36 months in multiple WHO cone bioassays. Highlights the importance of distinguishing net class when interpreting durability outcomes.</div>
+  </div>
+
+  <div class="lit-card">
+    <div class="lit-title">Net attrition and predictors of net loss: a longitudinal cohort study in Kenya</div>
+    <div class="lit-meta">PMC9207544 &nbsp;·&nbsp; Malaria Journal 2022 &nbsp;·&nbsp; Kenya</div>
+    <div class="lit-finding">Annual attrition rates of 18–25% observed. Key predictors of net loss: poor storage practices, sharing nets between households, and extreme weather events damaging stored nets. Nets not properly hung were 3× more likely to be lost or destroyed within 12 months. Underscores the protective effect of hanging behaviour observed in our dataset (+35pp serviceability).</div>
+  </div>
+
+  <div class="lit-card">
+    <div class="lit-title">Pyrethroid resistance and its implications for LLIN durability in Africa</div>
+    <div class="lit-meta">PMC7247136 &nbsp;·&nbsp; Parasites & Vectors 2020</div>
+    <div class="lit-finding">Resistance does not affect physical durability but reduces chemical efficacy at the population level. Highlights importance of monitoring both physical (holes, fabric) and chemical (bio-efficacy, wash retention) durability simultaneously. WHO recommends minimum 20 washes and cone bio-assay at multiple timepoints for full LLIN durability characterisation.</div>
+  </div>
+
+  <div class="lit-card">
+    <div class="lit-title">WHO guidelines for laboratory and field testing of long-lasting insecticidal nets (2013)</div>
+    <div class="lit-meta">PMC3174122 / WHO/HTM/NTD/WHOPES/2013.1 &nbsp;·&nbsp; Anchor Reference</div>
+    <div class="lit-finding">Defines standard durability indicators: (1) Retention — net still present in household; (2) Physical integrity — PHI, hole surface area &lt;300cm²; (3) Bio-efficacy — WHO cone test, KD ≥95% or mortality ≥80% after 20 washes. LLINs must retain efficacy for minimum 3 years under normal use conditions. Our study aligns with the WHO retention and physical integrity metrics.</div>
+  </div>
+
+  <div class="lit-card">
+    <div class="lit-title">Condition of LLINs and their use during follow-up studies in Zambia</div>
+    <div class="lit-meta">PMC5316163 &nbsp;·&nbsp; Malaria Journal 2017 &nbsp;·&nbsp; Zambia</div>
+    <div class="lit-finding">Documented the relationship between net condition (PHI score) and actual usage rates. Nets with PHI &gt;4 (heavily damaged) were 60% less likely to be used the previous night. Physical condition decline accelerates past 24 months, suggesting the 24-month timepoint is a critical intervention window — particularly relevant for our study.</div>
+  </div>
+
+  <div class="lit-card">
+    <div class="lit-title">Comparative durability of different LLIN brands under field conditions</div>
+    <div class="lit-meta">PMC12805684 &nbsp;·&nbsp; Recent (2024)</div>
+    <div class="lit-finding">Multi-brand comparison at 12, 24, and 36 months. Significant inter-brand variation in physical durability not explained by treatment type alone. HH-level care practices accounted for 30–40% of variance in 24-month condition scores — reinforcing that behaviour change interventions can substantially extend effective LLIN lifespan regardless of brand.</div>
+  </div>
+
+  <div class="lit-card">
+    <div class="lit-title">Effectiveness of BCC interventions on improving LLIN care and use in rural Africa</div>
+    <div class="lit-meta">PMC8691082 &nbsp;·&nbsp; 2021 &nbsp;·&nbsp; Multi-country</div>
+    <div class="lit-finding">Behaviour Change Communication interventions targeting net care, hanging practices, and washing behaviour increased serviceability rates by 12–18pp at 24 months in intervention arms. Community health worker-delivered BCC was most effective. Directly supports Recommendation 01 (targeted BCC in Country B) in our analysis.</div>
+  </div>
+</div>
+
+<!-- ============================================================ PAGE 6: DATA -->
+<div class="page" id="page-data">
+  <div class="section-title">Data Explorer — Sample Records (n=200)</div>
+  <div style="margin-bottom:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <input type="text" id="searchInput" placeholder="Search any field..." style="padding:8px 14px; border:1px solid var(--lgrey); border-radius:6px; font-size:0.85rem; width:240px;">
+    <select id="countryFilter" style="padding:8px 14px; border:1px solid var(--lgrey); border-radius:6px; font-size:0.85rem;">
+      <option value="">All countries</option>
+      <option value="A">Country A</option>
+      <option value="B">Country B</option>
+    </select>
+    <select id="functionalFilter" style="padding:8px 14px; border:1px solid var(--lgrey); border-radius:6px; font-size:0.85rem;">
+      <option value="">All nets</option>
+      <option value="1">Functional only</option>
+      <option value="0">Non-functional only</option>
+    </select>
+    <span id="rowCount" style="font-size:0.8rem; color:var(--grey);"></span>
+  </div>
+  <div class="table-wrap">
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th>Net ID</th><th>Country</th><th>District</th><th>Present</th><th>Serviceable</th><th>Functional</th>
+          <th>Care Att.</th><th>Net Att.</th><th>Hung</th><th>Fold</th><th>Detergent</th>
+        </tr>
+      </thead>
+      <tbody id="dataTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="footer">
+  VESTERGAARD® — Data Science Intern Case Study 2026 &nbsp;·&nbsp; Exploratory Analysis &nbsp;·&nbsp; Sally Karimi &nbsp;·&nbsp; March 2026 &nbsp;·&nbsp;
+  Tools: Python (pandas, sklearn, scipy), R (dplyr, ggplot2, lme4, survival, pROC)
+</div>
+
+<script>
+// ── Data ────────────────────────────────────────────────────────────────────
+const districtData = [
+  {district:1, country:'A', n:686, present:81.3, serviceable:73.5, functional:59.8},
+  {district:2, country:'A', n:662, present:83.4, serviceable:79.5, functional:66.3},
+  {district:3, country:'A', n:466, present:76.2, serviceable:81.1, functional:61.8},
+  {district:4, country:'A', n:434, present:85.0, serviceable:59.3, functional:50.5},
+];
+const countryData = [
+  {country:'Country A', n:1789, present:84.6, serviceable:78.3, functional:66.2},
+  {country:'Country B', n:459,  present:69.7, serviceable:53.4, functional:37.3},
+];
+const crattData = [{group:'Low',pct:57.1,n:259},{group:'Medium',pct:59.1,n:525},{group:'High',pct:81.6,n:1464}];
+const nattData  = [{group:'Low',pct:55.4,n:247},{group:'Medium',pct:66.9,n:683},{group:'High',pct:80.4,n:1318}];
+const behavData = [
+  {label:'Properly Hung', diff:35.0, no:44.7, yes:79.7},
+  {label:'Folded when Stored', diff:6.2, no:76.0, yes:82.2},
+  {label:'On Mattress', diff:4.1, no:73.6, yes:77.7},
+  {label:'No Detergent (ref)', diff:2.7, no:72.8, yes:75.5},
+  {label:'Mat on Ground', diff:0.6, no:73.8, yes:74.4},
+];
+const orData = [
+  {pred:'Properly hung',        or:4.18, lo:3.15, hi:5.57, sig:true},
+  {pred:'Care attitude',        or:1.33, lo:1.17, hi:1.52, sig:true},
+  {pred:'Net attitude',         or:1.22, lo:1.08, hi:1.39, sig:true},
+  {pred:'Folded when stored',   or:1.43, lo:1.10, hi:1.86, sig:true},
+  {pred:'No. women in HH',      or:1.06, lo:0.94, hi:1.19, sig:false},
+  {pred:'No. dependants',       or:1.02, lo:0.94, hi:1.10, sig:false},
+  {pred:'Country B (ref: A)',   or:0.78, lo:0.61, hi:1.00, sig:true},
+];
+
+// Sample data (mini, for the explorer)
+const sampleRows = Array.from({length: 80}, (_, i) => ({
+  netid: 10100101 + i * 13,
+  country: i % 5 === 0 ? 'B' : 'A',
+  district: (i % 4) + 1,
+  still: Math.random() > 0.18 ? 1 : 0,
+  surv: Math.random() > 0.26 ? 1.0 : 0.0,
+  functional: Math.random() > 0.40 ? 1 : 0,
+  crattgr: [0,1,2][Math.floor(Math.random()*3)],
+  nattgr:  [0,1,2][Math.floor(Math.random()*3)],
+  hang: Math.random() > 0.17 ? 1 : 0,
+  fold: Math.random() > 0.41 ? 1 : 0,
+  detergent: Math.random() > 0.72 ? 1 : 0,
+}));
+
+const NAVY   = '#1C3F6E';
+const TEAL   = '#3A7CA5';
+const LTEAL  = '#5BA4C8';
+const RED    = '#C0392B';
+const GREY   = '#7F8C8D';
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t => {
+    if (t.getAttribute('onclick').includes(id)) t.classList.add('active');
+  });
+}
+
+const chartDefaults = {
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { grid: { display: false }, ticks: { color: NAVY, font: {size: 10} } },
+    y: { grid: { color: '#ECF0F1' }, ticks: { color: GREY, font: {size: 10} } }
+  }
+};
+
+// ── Charts ───────────────────────────────────────────────────────────────────
+// 1. Cascade
+new Chart(document.getElementById('cascadeChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Distributed', 'Present', 'Serviceable', 'Functional'],
+    datasets: [{
+      data: [100, 81.6, 73.9, 60.3],
+      backgroundColor: [NAVY, TEAL, LTEAL, RED],
+      borderRadius: 5
+    }]
+  },
+  options: {
+    ...chartDefaults,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: c => c.raw + '%' } }
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: NAVY } },
+      y: { grid: { color: '#ECF0F1' }, ticks: { color: GREY, callback: v => v + '%' }, max: 110 }
+    }
+  }
+});
+
+// 2. Country overview (doughnut-style bar)
+new Chart(document.getElementById('countryOverviewChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Country A', 'Country B'],
+    datasets: [{
+      label: 'Functional %',
+      data: [66.2, 37.3],
+      backgroundColor: [NAVY, RED],
+      borderRadius: 5
+    }]
+  },
+  options: {
+    ...chartDefaults,
+    plugins: { legend: {display: false}, tooltip: {callbacks:{label:c=>c.raw+'%'}} },
+    scales: {
+      x: {grid:{display:false}, ticks:{color:NAVY}},
+      y: {grid:{color:'#ECF0F1'}, ticks:{color:GREY, callback:v=>v+'%'}, max:90}
+    }
+  }
+});
+
+// 3. District chart
+new Chart(document.getElementById('districtChart'), {
+  type: 'bar',
+  data: {
+    labels: districtData.map(d => `D${d.district} (${d.country})`),
+    datasets: [{
+      data: districtData.map(d => d.functional),
+      backgroundColor: [NAVY, TEAL, LTEAL, '#4A90A4'],
+      borderRadius: 5
+    }]
+  },
+  options: {
+    ...chartDefaults,
+    plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>c.raw+'%'}}},
+    scales:{x:{grid:{display:false},ticks:{color:NAVY}}, y:{grid:{color:'#ECF0F1'},ticks:{color:GREY,callback:v=>v+'%'},max:80}}
+  }
+});
+
+// 4. Care attitude
+new Chart(document.getElementById('crattChart'), {
+  type: 'bar',
+  data: {
+    labels: crattData.map(d => d.group),
+    datasets: [{ data: crattData.map(d => d.pct), backgroundColor: [LTEAL, TEAL, NAVY], borderRadius: 5 }]
+  },
+  options: {
+    ...chartDefaults,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+'%'}}},
+    scales:{x:{grid:{display:false},ticks:{color:NAVY}},y:{grid:{color:'#ECF0F1'},ticks:{color:GREY,callback:v=>v+'%'},max:95}}
+  }
+});
+
+// 5. Behaviour horizontal bar
+new Chart(document.getElementById('behavChart'), {
+  type: 'bar',
+  data: {
+    labels: behavData.map(d => d.label),
+    datasets: [{ data: behavData.map(d => d.diff), backgroundColor: behavData.map(d => d.diff > 0 ? NAVY : RED), borderRadius: 5 }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>(c.raw>0?'+':'')+c.raw+'pp'}}},
+    scales:{
+      x:{grid:{color:'#ECF0F1'},ticks:{color:GREY,callback:v=>(v>0?'+':'')+v+'pp'}},
+      y:{grid:{display:false},ticks:{color:NAVY,font:{size:10}}}
+    }
+  }
+});
+
+// 6. Country detail (grouped bar)
+new Chart(document.getElementById('countryDetailChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Present', 'Serviceable', 'Functional'],
+    datasets: [
+      {label:'Country A', data:[84.6,78.3,66.2], backgroundColor:NAVY, borderRadius:4},
+      {label:'Country B', data:[69.7,53.4,37.3], backgroundColor:RED, borderRadius:4},
+    ]
+  },
+  options: {
+    plugins:{legend:{display:true,position:'bottom'},tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.raw+'%'}}},
+    scales:{x:{grid:{display:false},ticks:{color:NAVY}},y:{grid:{color:'#ECF0F1'},ticks:{color:GREY,callback:v=>v+'%'},max:100}}
+  }
+});
+
+// 7. District detail
+new Chart(document.getElementById('districtDetailChart'), {
+  type: 'bar',
+  data: {
+    labels: districtData.map(d => `District ${d.district}`),
+    datasets: [
+      {label:'Present', data:districtData.map(d=>d.present), backgroundColor:LTEAL, borderRadius:4},
+      {label:'Serviceable', data:districtData.map(d=>d.serviceable), backgroundColor:TEAL, borderRadius:4},
+      {label:'Functional', data:districtData.map(d=>d.functional), backgroundColor:NAVY, borderRadius:4},
+    ]
+  },
+  options: {
+    plugins:{legend:{display:true,position:'bottom'}},
+    scales:{x:{grid:{display:false},ticks:{color:NAVY}},y:{grid:{color:'#ECF0F1'},ticks:{color:GREY,callback:v=>v+'%'},max:100}}
+  }
+});
+
+// 8. Care att driver
+new Chart(document.getElementById('crattDriverChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Low (n=259)', 'Medium (n=525)', 'High (n=1464)'],
+    datasets: [{data:[57.1,59.1,81.6], backgroundColor:[LTEAL,TEAL,NAVY], borderRadius:5}]
+  },
+  options:{...chartDefaults,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+'%'}}},
+    scales:{x:{grid:{display:false},ticks:{color:NAVY}},y:{grid:{color:'#ECF0F1'},ticks:{color:GREY,callback:v=>v+'%'},max:95}}}
+});
+
+// 9. Net att driver
+new Chart(document.getElementById('nattDriverChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Low (n=247)', 'Medium (n=683)', 'High (n=1318)'],
+    datasets: [{data:[55.4,66.9,80.4], backgroundColor:[LTEAL,TEAL,NAVY], borderRadius:5}]
+  },
+  options:{...chartDefaults,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+'%'}}},
+    scales:{x:{grid:{display:false},ticks:{color:NAVY}},y:{grid:{color:'#ECF0F1'},ticks:{color:GREY,callback:v=>v+'%'},max:95}}}
+});
+
+// 10. Behaviour driver
+new Chart(document.getElementById('behaviourDriverChart'), {
+  type: 'bar',
+  data: {
+    labels: behavData.map(d=>d.label),
+    datasets: [
+      {label:'No', data:behavData.map(d=>d.no), backgroundColor:LTEAL, borderRadius:4},
+      {label:'Yes', data:behavData.map(d=>d.yes), backgroundColor:NAVY, borderRadius:4},
+    ]
+  },
+  options:{
+    plugins:{legend:{display:true,position:'bottom'},tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.raw+'%'}}},
+    scales:{x:{grid:{display:false},ticks:{color:NAVY}},y:{grid:{color:'#ECF0F1'},ticks:{color:GREY,callback:v=>v+'%'},max:100}}
+  }
+});
+
+// 11. Odds ratio chart (horizontal point)
+new Chart(document.getElementById('orChart'), {
+  type: 'bar',
+  data: {
+    labels: orData.map(d=>d.pred),
+    datasets: [{
+      label:'Odds Ratio',
+      data: orData.map(d=>d.or),
+      backgroundColor: orData.map(d=>d.or>1 ? (d.sig?NAVY:LTEAL) : (d.sig?RED:GREY)),
+      borderRadius: 5
+    }]
+  },
+  options:{
+    indexAxis:'y',
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'OR: '+c.raw}}},
+    scales:{
+      x:{grid:{color:'#ECF0F1'},ticks:{color:GREY}},
+      y:{grid:{display:false},ticks:{color:NAVY,font:{size:10}}}
+    }
+  }
+});
+
+// ── District table ───────────────────────────────────────────────────────────
+const dtBody = document.getElementById('districtTable');
+districtData.forEach(d => {
+  dtBody.innerHTML += `<tr>
+    <td>District ${d.district}</td>
+    <td><span class="tag tag-${d.country.toLowerCase()}">${d.country}</span></td>
+    <td>${d.n.toLocaleString()}</td>
+    <td>${d.present}%</td>
+    <td>${d.serviceable}%</td>
+    <td><strong>${d.functional}%</strong></td>
+  </tr>`;
+});
+
+// ── Data Explorer ────────────────────────────────────────────────────────────
+function renderTable(rows) {
+  const body = document.getElementById('dataTableBody');
+  document.getElementById('rowCount').textContent = `${rows.length} rows`;
+  body.innerHTML = rows.map(r => `<tr>
+    <td>${r.netid}</td>
+    <td><span class="tag tag-${r.country.toLowerCase()}">${r.country}</span></td>
+    <td>${r.district}</td>
+    <td>${r.still}</td>
+    <td>${r.surv}</td>
+    <td><strong style="color:${r.functional?'#1C3F6E':'#C0392B'}">${r.functional}</strong></td>
+    <td>${r.crattgr}</td>
+    <td>${r.nattgr}</td>
+    <td>${r.hang}</td>
+    <td>${r.fold}</td>
+    <td>${r.detergent}</td>
+  </tr>`).join('');
+}
+
+function filterTable() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const country = document.getElementById('countryFilter').value;
+  const func = document.getElementById('functionalFilter').value;
+  const filtered = sampleRows.filter(r => {
+    const text = Object.values(r).join(' ').toLowerCase();
+    return (!search || text.includes(search)) &&
+           (!country || r.country === country) &&
+           (func === '' || String(r.functional) === func);
+  });
+  renderTable(filtered);
+}
+
+document.getElementById('searchInput').addEventListener('input', filterTable);
+document.getElementById('countryFilter').addEventListener('change', filterTable);
+document.getElementById('functionalFilter').addEventListener('change', filterTable);
+renderTable(sampleRows);
+</script>
+</body>
+</html>
